@@ -70,8 +70,3 @@ This Spoon requires Accessibility API access to:
 Enable access in:
 1. System Settings → Privacy & Security → Accessibility
 2. Add Hammerspoon to the allowed apps list
-
-## License
-
-MIT Licensed - Created by Hugo Haas  
-Full text: [LICENSE](https://github.com/yourusername/AppBadgeWatcher.spoon/blob/main/LICENSE)
