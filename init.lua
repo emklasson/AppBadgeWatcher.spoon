@@ -20,6 +20,7 @@ obj.timer = nil
 obj.menu = nil
 obj.iconCache = {}
 obj.log = hs.logger.new("AppBadgeWatcher", "info")
+obj.snoozedBadges = {}
 
 local ax = require("hs.axuielement")
 
@@ -125,8 +126,11 @@ function obj:updateMenuWithBadges(badges)
 
 	local activeIcons = {}
 	for _, appName in ipairs(self.appsToWatch) do
-		local badge = badges[appName]
-		if badge then
+		if badges[appName] then
+			if not self.snoozedBadges[appName] or self.snoozedBadges[appName] > badges[appName] then
+				self.snoozedBadges[appName] = 0
+			end
+			local badge = badges[appName] - self.snoozedBadges[appName]
 			if badge > 9 then
 				badge = "∞"
 			end
@@ -149,6 +153,24 @@ function obj:updateMenuWithBadges(badges)
 					w = fontSize + 2,
 				},
 			}
+			if self.snoozedBadges[appName] > 0 then
+				local snoozed = self.snoozedBadges[appName]
+				if snoozed > 9 then
+					snoozed = "∞"
+				end
+				iconCanvas[3] = {
+					type = "text",
+					text = snoozed,
+					textSize = fontSize,
+					textColor = { white = 1 },
+					frame = {
+						x = itemWidth - fontSize + obj.textOffset.x,
+						y = menuItemDim - fontSize + obj.textOffset.y,
+						h = fontSize + 2,
+						w = fontSize + 2,
+					},
+				}
+			end
 			table.insert(activeIcons, iconCanvas:imageFromCanvas())
 		end
 	end
@@ -164,10 +186,14 @@ function obj:updateMenuWithBadges(badges)
 	end
 	self.menu:setIcon(canvas:imageFromCanvas(), false)
 	self.menu:setTitle("")
+	self.menu:setClickCallback(function()
+		self.snoozedBadges = self.lastBadges
+		self:updateMenu(true)
+	end)
 	self.log.d("Updated menubar icon with", #activeIcons, "icons")
 end
 
-function obj:updateMenu()
+function obj:updateMenu(forceUpdate)
 	local dockBadges = self:getDockBadges()
 
 	local hasBadges = false
@@ -180,7 +206,7 @@ function obj:updateMenu()
 		end
 	end
 
-	if tablesEqual(filteredBadges, self.lastBadges) then
+	if not forceUpdate and tablesEqual(filteredBadges, self.lastBadges) then
 		self.log.d("No badge changes, skipping update")
 		return
 	end
@@ -188,6 +214,7 @@ function obj:updateMenu()
 
 	if not hasBadges then
 		self:updateMenuNoNotification()
+		self.snoozedBadges = {}
 		return
 	end
 
