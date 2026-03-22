@@ -11,12 +11,16 @@ obj.homepage = "https://github.com/hugoh/AppBadgeWatcher.spoon"
 obj.appsToWatch = {}
 obj.refreshInterval = 15
 obj.nothingIndicator = "・"
+obj.grayscaleIcon = false
+obj.fontSize = 6
+obj.textOffset = { x = 2, y = 0 }
 
 -- Internal
 obj.timer = nil
 obj.menu = nil
 obj.iconCache = {}
 obj.log = hs.logger.new("AppBadgeWatcher", "info")
+obj.snoozedBadges = {}
 
 local ax = require("hs.axuielement")
 
@@ -44,7 +48,7 @@ function obj.getIconForApp(appName, iconDim)
 		return nil
 	end
 
-	local resized = icon:setSize({ w = iconDim, h = iconDim })
+	local resized = icon:bitmapRepresentation({ w = iconDim, h = iconDim }, obj.grayscaleIcon)
 	obj.iconCache[cacheKey] = resized
 	return resized
 end
@@ -118,12 +122,15 @@ function obj:updateMenuWithBadges(badges)
 	local menuItemDim = 22
 	local iconDim = 19
 	local itemWidth = 25
-	local fontSize = 6
+	local fontSize = obj.fontSize
 
 	local activeIcons = {}
 	for _, appName in ipairs(self.appsToWatch) do
-		local badge = badges[appName]
-		if badge then
+		if badges[appName] then
+			if not self.snoozedBadges[appName] or self.snoozedBadges[appName] > badges[appName] then
+				self.snoozedBadges[appName] = 0
+			end
+			local badge = badges[appName] - self.snoozedBadges[appName]
 			if badge > 9 then
 				badge = "∞"
 			end
@@ -139,8 +146,31 @@ function obj:updateMenuWithBadges(badges)
 				text = badge,
 				textSize = fontSize,
 				textColor = { white = 1 },
-				frame = { x = menuItemDim - 1, y = 1, h = fontSize + 2, w = fontSize + 2 },
+				frame = {
+					x = itemWidth - fontSize + obj.textOffset.x,
+					y = 1 + obj.textOffset.y,
+					h = fontSize + 2,
+					w = fontSize + 2,
+				},
 			}
+			if self.snoozedBadges[appName] > 0 then
+				local snoozed = self.snoozedBadges[appName]
+				if snoozed > 9 then
+					snoozed = "∞"
+				end
+				iconCanvas[3] = {
+					type = "text",
+					text = snoozed,
+					textSize = fontSize,
+					textColor = { white = 1 },
+					frame = {
+						x = itemWidth - fontSize + obj.textOffset.x,
+						y = menuItemDim - fontSize + obj.textOffset.y,
+						h = fontSize + 2,
+						w = fontSize + 2,
+					},
+				}
+			end
 			table.insert(activeIcons, iconCanvas:imageFromCanvas())
 		end
 	end
@@ -156,10 +186,14 @@ function obj:updateMenuWithBadges(badges)
 	end
 	self.menu:setIcon(canvas:imageFromCanvas(), false)
 	self.menu:setTitle("")
+	self.menu:setClickCallback(function()
+		self.snoozedBadges = self.lastBadges
+		self:updateMenu(true)
+	end)
 	self.log.d("Updated menubar icon with", #activeIcons, "icons")
 end
 
-function obj:updateMenu()
+function obj:updateMenu(forceUpdate)
 	local dockBadges = self:getDockBadges()
 
 	local hasBadges = false
@@ -172,7 +206,7 @@ function obj:updateMenu()
 		end
 	end
 
-	if tablesEqual(filteredBadges, self.lastBadges) then
+	if not forceUpdate and tablesEqual(filteredBadges, self.lastBadges) then
 		self.log.d("No badge changes, skipping update")
 		return
 	end
@@ -180,6 +214,7 @@ function obj:updateMenu()
 
 	if not hasBadges then
 		self:updateMenuNoNotification()
+		self.snoozedBadges = {}
 		return
 	end
 
