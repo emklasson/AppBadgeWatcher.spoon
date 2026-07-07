@@ -113,6 +113,9 @@ local function tablesEqual(t1, t2)
 end
 
 function obj:updateMenuNoNotification()
+	if not self.nothingIndicator then
+		self.menu:removeFromMenuBar()
+	end
 	self.menu:setTitle(self.nothingIndicator)
 	self.menu:setIcon(nil)
 	self.log.d("No active badges, showing indicator:", self.nothingIndicator)
@@ -184,6 +187,7 @@ function obj:updateMenuWithBadges(badges)
 			frame = { x = (i - 1) * itemWidth, y = 0, h = menuItemDim, w = itemWidth },
 		}
 	end
+	self.menu:returnToMenuBar()
 	self.menu:setIcon(canvas:imageFromCanvas(), false)
 	self.menu:setTitle("")
 	self.menu:setClickCallback(function()
